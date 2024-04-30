@@ -14,6 +14,7 @@ import aiofiles
 from base.base_crawler import AbstractStore
 from tools import utils
 from var import crawler_type_var
+from video.models import VideoInfo
 
 
 class DouyinCsvStoreImplement(AbstractStore):
@@ -42,7 +43,9 @@ class DouyinCsvStoreImplement(AbstractStore):
         """
         pathlib.Path(self.csv_store_path).mkdir(parents=True, exist_ok=True)
         save_file_name = self.make_save_file_name(store_type=store_type)
-        async with aiofiles.open(save_file_name, mode='a+', encoding="utf-8-sig", newline="") as f:
+        async with aiofiles.open(
+            save_file_name, mode="a+", encoding="utf-8-sig", newline=""
+        ) as f:
             writer = csv.writer(f)
             if await f.tell() == 0:
                 await writer.writerow(save_item.keys())
@@ -59,17 +62,6 @@ class DouyinCsvStoreImplement(AbstractStore):
         """
         await self.save_data_to_csv(save_item=content_item, store_type="contents")
 
-    async def store_comment(self, comment_item: Dict):
-        """
-        Xiaohongshu comment CSV storage implementation
-        Args:
-            comment_item: comment item dict
-
-        Returns:
-
-        """
-        await self.save_data_to_csv(save_item=comment_item, store_type="comments")
-
 
 class DouyinDbStoreImplement(AbstractStore):
     async def store_content(self, content_item: Dict):
@@ -82,38 +74,51 @@ class DouyinDbStoreImplement(AbstractStore):
 
         """
 
-        from .douyin_store_sql import (add_new_content,
-                                       query_content_by_content_id,
-                                       update_content_by_content_id)
-        aweme_id = content_item.get("aweme_id")
-        aweme_detail: Dict = await query_content_by_content_id(content_id=aweme_id)
-        if not aweme_detail:
-            content_item["add_ts"] = utils.get_current_timestamp()
-            if content_item.get("title"):
-                await add_new_content(content_item)
-        else:
-            await update_content_by_content_id(aweme_id, content_item=content_item)
+        # print(VideoInfo.objects.get(pk=content_item.get("aweme_id")))
 
+        # 更新或新建 VideoInfo
+        newVideo = VideoInfo.objects.update_or_create(
+            aweme_id=content_item.get("aweme_id"),
+            defaults={
+                "aweme_id": content_item.get("aweme_id"),
+                "aweme_type": content_item.get("aweme_type"),
+                "title": content_item.get("title"),
+                "desc": content_item.get("desc"),
+                "create_time": content_item.get("create_time"),
+                "user_id": content_item.get("user_id"),
+                "sec_uid": content_item.get("sec_uid"),
+                "short_user_id": content_item.get("short_user_id"),
+                "user_unique_id": content_item.get("user_unique_id"),
+                "user_signature": content_item.get("user_signature"),
+                "nickname": content_item.get("nickname"),
+                "avatar": content_item.get("avatar"),
+                "liked_count": content_item.get("liked_count"),
+                "collected_count": content_item.get("collected_count"),
+                "comment_count": content_item.get("comment_count"),
+                "share_count": content_item.get("share_count"),
+                "ip_location": content_item.get("ip_location"),
+                "last_modify_ts": content_item.get("last_modify_ts"),
+                "cover": content_item.get("cover"),
+                "aweme_url": content_item.get("aweme_url"),
+            },
+        )
 
-    async def store_comment(self, comment_item: Dict):
-        """
-        Douyin content DB storage implementation
-        Args:
-            comment_item: comment item dict
+        print("newVideo", newVideo)
 
-        Returns:
+        # from .douyin_store_sql import (
+        #     add_new_content,
+        #     query_content_by_content_id,
+        #     update_content_by_content_id,
+        # )
 
-        """
-        from .douyin_store_sql import (add_new_comment,
-                                       query_comment_by_comment_id,
-                                       update_comment_by_comment_id)
-        comment_id = comment_item.get("comment_id")
-        comment_detail: Dict = await query_comment_by_comment_id(comment_id=comment_id)
-        if not comment_detail:
-            comment_item["add_ts"] = utils.get_current_timestamp()
-            await add_new_comment(comment_item)
-        else:
-            await update_comment_by_comment_id(comment_id, comment_item=comment_item)
+        # aweme_id = content_item.get("aweme_id")
+        # aweme_detail: Dict = await query_content_by_content_id(content_id=aweme_id)
+        # if not aweme_detail:
+        #     content_item["add_ts"] = utils.get_current_timestamp()
+        #     if content_item.get("title"):
+        #         await add_new_content(content_item)
+        # else:
+        #     await update_content_by_content_id(aweme_id, content_item=content_item)
 
 
 class DouyinJsonStoreImplement(AbstractStore):
@@ -147,11 +152,11 @@ class DouyinJsonStoreImplement(AbstractStore):
 
         async with self.lock:
             if os.path.exists(save_file_name):
-                async with aiofiles.open(save_file_name, 'r', encoding='utf-8') as file:
+                async with aiofiles.open(save_file_name, "r", encoding="utf-8") as file:
                     save_data = json.loads(await file.read())
 
             save_data.append(save_item)
-            async with aiofiles.open(save_file_name, 'w', encoding='utf-8') as file:
+            async with aiofiles.open(save_file_name, "w", encoding="utf-8") as file:
                 await file.write(json.dumps(save_data, ensure_ascii=False))
 
     async def store_content(self, content_item: Dict):
@@ -164,14 +169,3 @@ class DouyinJsonStoreImplement(AbstractStore):
 
         """
         await self.save_data_to_json(content_item, "contents")
-
-    async def store_comment(self, comment_item: Dict):
-        """
-        comment JSON storage implementatio
-        Args:
-            comment_item:
-
-        Returns:
-
-        """
-        await self.save_data_to_json(comment_item, "comments")
